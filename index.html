@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Solar System · 太阳系 — Interactive Orbital Explorer 互动轨道探索</title>
+<meta name="description" content="八大行星互动轨道模型：真实相对公转周期、可点击天体、中英双语介绍。Eight planets with true relative orbital periods, clickable bodies, bilingual introductions.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ============ 1. Tokens & reset ============ */
+:root{
+  --bg:#04060e;
+  --bg-stage-1:#0b1128; --bg-stage-2:#060913; --bg-stage-3:#030409;
+  --panel:rgba(12,17,33,.72);
+  --line:rgba(140,160,220,.16);
+  --line-strong:rgba(150,170,220,.28);
+  --text:#e8ecf8;
+  --text-2:#a8b3cf;
+  --text-3:#7c89ad;
+  --accent:#6ea8ff;
+  --accent-2:#a78bfa;
+  --font-display:"Orbitron","Noto Sans SC","PingFang SC","HarmonyOS Sans SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  --font-sans:"Noto Sans SC","PingFang SC","HarmonyOS Sans SC","Noto Sans CJK SC","Microsoft YaHei UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+  --font-mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+  --r-lg:18px; --r-md:12px; --r-sm:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-sans);
+  font-size:14px;
+  line-height:1.6;
+  letter-spacing:0;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+button{font-family:inherit;color:inherit}
+::selection{background:rgba(110,168,255,.3)}
+
+/* ============ 2. Header ============ */
+header{
+  max-width:1600px;margin:0 auto;padding:14px 24px 8px;text-align:center;
+}
+h1{
+  font-family:var(--font-display);font-weight:900;
+  font-size:clamp(28px,4.6vw,44px);letter-spacing:.06em;line-height:1.15;
+  display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:6px 18px;
+}
+h1 .t-zh{font-family:var(--font-sans);font-weight:700;font-size:clamp(20px,2.8vw,26px);letter-spacing:.28em;color:var(--text-2)}
+
+/* ============ 3. Layout ============ */
+main{
+  max-width:1280px;margin:0 auto;padding:6px 24px 30px;
+  display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:26px;align-items:start;
+}
+
+/* ============ 4. Stage ============ */
+.stage-col{width:100%;max-width:840px;margin:0 auto;min-width:0}
+.stage{
+  position:relative;width:100%;min-width:300px;aspect-ratio:4/3;max-height:calc(100vh - 220px);
+  margin:0 auto;border:1px solid var(--line);border-radius:var(--r-lg);
+  background:radial-gradient(circle at 50% 50%,var(--bg-stage-1) 0%,var(--bg-stage-2) 52%,var(--bg-stage-3) 100%);
+  overflow:hidden;
+}
+.noscript-note{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:30px;color:var(--text-2);font-size:14px;
+}
+.stars{position:absolute;inset:0;pointer-events:none}
+.stars span{position:absolute;background:#cfe0ff;border-radius:50%;width:1px;height:1px}
+.stars span.big{width:2px;height:2px;box-shadow:0 0 4px rgba(207,224,255,.8)}
+
+/* orbit rings */
+.ring{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  border-radius:50%;border:1px solid rgba(170,186,226,.32);
+  pointer-events:none;opacity:.95;
+  transition:opacity .25s,border-color .25s,box-shadow .25s;
+}
+.stage.has-sel .ring:not(.active){opacity:.5}
+.ring.active{border-color:var(--pc);box-shadow:0 0 14px -4px var(--pc-glow),inset 0 0 14px -8px var(--pc-glow)}
+
+/* anchors: planets & sun */
+.anchor{
+  position:absolute;left:50%;top:50%;width:0;height:0;padding:0;
+  appearance:none;background:transparent;border:0;cursor:pointer;
+  transition:opacity .25s;
+}
+.stage.has-sel .anchor:not(.selected){opacity:.7}
+.anchor .hit{
+  position:absolute;left:0;top:0;transform:translate(-50%,-50%);
+  width:var(--hit);height:var(--hit);border-radius:50%;
+  transition:box-shadow .15s;
+}
+.anchor:hover .hit{box-shadow:0 0 0 1.5px var(--pc-soft)}
+.anchor:focus-visible{outline:none}
+.anchor:focus-visible .hit{outline:2px solid #9ecbff;outline-offset:3px}
+.anchor .body{
+  position:absolute;left:0;top:0;transform:translate(-50%,-50%);
+  width:calc(var(--r)*2);height:calc(var(--r)*2);border-radius:50%;
+  background:radial-gradient(circle at 33% 30%,var(--c1),var(--c2) 78%);
+  box-shadow:
+    inset calc(var(--r)*-0.55) calc(var(--r)*-0.4) calc(var(--r)*0.9) rgba(4,7,16,.72),
+    inset calc(var(--r)*0.16) calc(var(--r)*0.13) calc(var(--r)*0.3) rgba(255,255,255,.16);
+  transition:filter .15s;
+}
+.anchor:hover .body{filter:brightness(1.18)}
+.anchor.selected .hit{box-shadow:0 0 0 2px var(--pc),0 0 18px -2px var(--pc-glow)}
+.anchor.selected .body{filter:brightness(1.22)}
+.anchor .label{
+  position:absolute;left:0;top:calc(var(--r) + 7px);transform:translateX(-50%);
+  font-family:var(--font-mono);font-size:var(--label-size,10px);line-height:1.35;
+  color:#a9b8dd;white-space:nowrap;pointer-events:none;
+  text-shadow:0 1px 3px rgba(2,4,10,.9);
+  transition:color .15s;
+}
+.anchor:hover .label,.anchor:focus-visible .label,.anchor.selected .label{color:#fff}
+
+/* sun — 重新生成的恒星模型：米粒组织表面 + 色球边缘亮环 + 呼吸日冕 */
+.sun-body{
+  background:
+    radial-gradient(circle at 34% 30%,rgba(255,255,255,.65),rgba(255,255,255,0) 28%),
+    radial-gradient(circle at 66% 58%,rgba(255,96,10,.38),rgba(255,96,10,0) 44%),
+    radial-gradient(circle at 26% 70%,rgba(255,88,8,.30),rgba(255,88,8,0) 38%),
+    repeating-radial-gradient(circle at 52% 46%,rgba(255,140,30,.14) 0 1.5px,rgba(255,220,120,.08) 1.5px 3px,rgba(255,140,30,0) 3px 5.5px),
+    radial-gradient(circle at 42% 38%,#fffbe8 0%,#ffe27a 30%,#ffb843 58%,#ff8c1a 80%,#ef6c08 100%);
+  box-shadow:
+    0 0 22px 5px rgba(255,214,110,.55),
+    0 0 55px 16px rgba(255,170,60,.30),
+    0 0 110px 38px rgba(255,150,45,.14);
+  animation:sunPulse 7s ease-in-out infinite;
+}
+.sun-body::before{ /* 色球层：贴着球体的边缘亮环 */
+  content:"";position:absolute;inset:-4%;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,190,80,0) 58%,rgba(255,214,120,.45) 72%,rgba(255,150,40,.12) 84%,rgba(255,150,40,0) 94%);
+  pointer-events:none;
+}
+.sun-body::after{ /* 日冕：大范围呼吸光晕 */
+  content:"";position:absolute;left:50%;top:50%;
+  width:calc(var(--r)*5);height:calc(var(--r)*5);
+  transform:translate(-50%,-50%);border-radius:50%;
+  background:radial-gradient(circle,rgba(255,222,120,.30) 0%,rgba(255,180,70,.15) 34%,rgba(255,150,50,.06) 56%,rgba(255,150,50,0) 70%);
+  animation:coronaBreathe 7s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes coronaBreathe{
+  0%,100%{opacity:.8;transform:translate(-50%,-50%) scale(1)}
+  50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}
+}
+@keyframes sunPulse{
+  0%,100%{transform:translate(-50%,-50%) scale(1)}
+  50%{transform:translate(-50%,-50%) scale(1.045)}
+}
+body.paused .sun-body{animation-play-state:paused}
+
+/* planet-specific paint */
+.anchor[data-id="earth"] .body{
+  background:
+    radial-gradient(circle at 33% 28%,rgba(255,255,255,.5),transparent 48%),
+    radial-gradient(circle at 62% 62%,rgba(88,164,96,.8),transparent 34%),
+    radial-gradient(circle at 38% 72%,rgba(88,164,96,.5),transparent 24%),
+    radial-gradient(circle at 50% 50%,#4d9be6,#1e57a8 78%);
+}
+.anchor[data-id="jupiter"] .body{
+  background:
+    radial-gradient(circle at 33% 28%,rgba(255,244,220,.55),transparent 52%),
+    repeating-linear-gradient(to bottom,#d9b98c 0 2.5px,#efd7ac 2.5px 5px,#b98f60 5px 7.5px);
+}
+.anchor[data-id="saturn"] .body{
+  background:
+    radial-gradient(circle at 33% 28%,rgba(255,246,220,.5),transparent 55%),
+    repeating-linear-gradient(to bottom,#efdfb2 0 2.5px,#d9bd85 2.5px 5px);
+}
+.anchor[data-id="saturn"] .body::after{
+  content:"";position:absolute;left:50%;top:50%;
+  width:calc(var(--r)*2.9);height:calc(var(--r)*2.9);
+  transform:translate(-50%,-50%);border-radius:50%;
+  border:calc(max(2px,var(--r)*0.22)) solid rgba(233,210,166,.62);
+  box-shadow:0 0 6px rgba(233,210,166,.22),inset 0 0 5px rgba(233,210,166,.3);
+  pointer-events:none;
+}
+
+/* ============ 5. Controls ============ */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;
+  margin-top:16px;padding:12px 14px;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:7px 14px;border-radius:var(--r-sm);cursor:pointer;
+  background:rgba(255,255,255,.06);border:1px solid var(--line-strong);
+  font-family:var(--font-mono);font-size:12px;color:var(--text);
+  transition:background .15s,border-color .15s;
+}
+.btn:hover{background:rgba(255,255,255,.11)}
+.btn:focus-visible{outline:2px solid #9ecbff;outline-offset:2px}
+.btn svg{flex:none}
+.speed{display:flex;flex-direction:column;gap:4px;min-width:190px;flex:1;max-width:300px}
+.ctl-k{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;
+  color:var(--text-3);text-transform:uppercase;
+}
+.ctl-k b{color:var(--accent);font-weight:500;margin-left:6px}
+.speed input[type="range"]{width:100%;accent-color:var(--accent);height:18px;cursor:pointer}
+.speed input[type="range"]:focus-visible{outline:2px solid #9ecbff;outline-offset:3px;border-radius:4px}
+.elapsed{margin-left:auto;text-align:right}
+.elapsed .ctl-k{display:block}
+.elapsed b{
+  font-family:var(--font-mono);font-weight:500;font-size:15px;color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ============ 6. Planet nav chips ============ */
+.planet-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 12px;border-radius:999px;cursor:pointer;
+  border:1px solid rgba(150,170,220,.22);background:rgba(20,27,48,.6);
+  font-family:var(--font-mono);font-size:11.5px;color:#c6d2ec;
+  transition:background .15s,border-color .15s,color .15s,box-shadow .15s;
+}
+.chip .dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--pc);box-shadow:0 0 6px var(--pc-glow)}
+.chip:hover{color:#fff;border-color:rgba(170,190,240,.45)}
+.chip:focus-visible{outline:2px solid #9ecbff;outline-offset:2px}
+.chip.selected{color:#fff;border-color:var(--pc);background:rgba(255,255,255,.04);box-shadow:0 0 12px -4px var(--pc-glow)}
+
+/* ============ 7. Detail panel ============ */
+.detail{
+  position:sticky;top:16px;
+  max-height:calc(100vh - 32px);overflow-y:auto;overscroll-behavior:contain;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:22px 22px 18px;backdrop-filter:blur(8px);
+  min-width:0;
+  scrollbar-width:thin;scrollbar-color:rgba(140,160,220,.35) transparent;
+}
+.detail::-webkit-scrollbar{width:6px}
+.detail::-webkit-scrollbar-thumb{background:rgba(140,160,220,.35);border-radius:3px}
+.p-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.p-title h2{
+  font-family:var(--font-display);font-weight:700;font-size:25px;letter-spacing:.04em;line-height:1.2;
+}
+.p-title .p-zh{font-size:19px;font-weight:700;color:var(--text-2);letter-spacing:.2em;margin-top:3px}
+.icon-btn{
+  flex:none;width:32px;height:32px;border-radius:50%;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.05);border:1px solid var(--line-strong);
+  transition:background .15s;
+}
+.icon-btn:hover{background:rgba(255,255,255,.12)}
+.icon-btn:focus-visible{outline:2px solid #9ecbff;outline-offset:2px}
+.p-type{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--pc,var(--accent));margin:12px 0 16px;
+}
+.stats{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+  margin-bottom:16px;
+}
+.stats .cell{
+  background:rgba(255,255,255,.032);border:1px solid rgba(255,255,255,.05);
+  border-radius:var(--r-sm);padding:9px 12px;min-width:0;
+}
+.stats dt{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.05em;color:#8fa1c9;line-height:1.45;
+}
+.stats dt span{display:block;color:#6d7a9e}
+.stats dd{
+  font-family:var(--font-mono);font-size:13px;color:#eef2fb;margin-top:4px;
+  overflow-wrap:break-word;
+}
+.size-cmp{margin:2px 0 16px}
+.sc-title{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;color:#8fa1c9;text-transform:uppercase;
+}
+.sc-title span{display:block;color:#6d7a9e;text-transform:none;letter-spacing:0;margin-top:2px}
+.sc-row{display:flex;align-items:flex-end;gap:26px;padding:16px 4px 4px;min-height:110px}
+.sc-item{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+.sc-ball{
+  display:block;border-radius:50%;
+  width:var(--d);height:var(--d);flex:none;
+  background:radial-gradient(circle at 35% 30%,var(--c1,#8ec9f5),var(--c2,#2b6cb8) 78%);
+  box-shadow:0 0 10px -2px rgba(140,180,255,.35);
+}
+.sc-name{font-family:var(--font-mono);font-size:10.5px;color:#a8b3cf;text-align:center;line-height:1.4}
+.size-note{
+  font-size:12.5px;color:var(--text-2);border:1px dashed var(--line-strong);
+  border-radius:var(--r-sm);padding:10px 14px;margin:2px 0 16px;line-height:1.7;
+}
+.desc{font-size:13.5px;color:#c9d4ec;margin:0 0 12px}
+.desc[lang="en"]{line-height:1.68}
+.desc[lang="zh-CN"]{line-height:1.85}
+.fact{
+  border-left:3px solid var(--pc,var(--accent));
+  background:rgba(255,255,255,.035);border-radius:0 var(--r-sm) var(--r-sm) 0;
+  padding:11px 14px;margin-top:4px;
+}
+.fact .fact-k{
+  display:block;font-family:var(--font-mono);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--pc,var(--accent));margin-bottom:5px;
+}
+.fact p{font-size:12.5px;color:#c9d4ec;line-height:1.7}
+.orbit-counter{
+  margin-top:14px;padding-top:12px;border-top:1px solid var(--line);
+  font-family:var(--font-mono);font-size:11.5px;color:var(--text-2);
+  font-variant-numeric:tabular-nums;
+}
+.orbit-counter b{color:var(--accent);font-weight:500}
+
+/* ============ 8. Footer ============ */
+footer{
+  max-width:1280px;margin:0 auto;padding:10px 24px 44px;
+  border-top:1px solid rgba(140,160,220,.10);
+}
+footer p{
+  font-family:var(--font-mono);font-size:11px;color:#7484ab;line-height:2;
+}
+footer p b{color:#93a5cc;font-weight:500}
+
+/* ============ 9. Entrance ============ */
+@keyframes riseIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.rise{opacity:0;animation:riseIn .6s cubic-bezier(.2,0,0,1) forwards}
+.rise-1{animation-delay:.05s}.rise-2{animation-delay:.18s}.rise-3{animation-delay:.31s}.rise-4{animation-delay:.44s}
+
+/* ============ 10. Responsive ============ */
+/* 平板（横/竖屏）保持“舞台 + 侧边详情”双栏布局，仅收窄详情栏 */
+@media (max-width:1080px){
+  main{grid-template-columns:minmax(0,1fr) 330px;gap:16px;padding:6px 16px 24px}
+  .stage-col{max-width:none}
+  .stage{width:100%}
+  .detail{top:12px;max-height:calc(100vh - 24px);padding:18px 16px 14px}
+  .p-title h2{font-size:22px}
+  .p-title .p-zh{font-size:17px}
+  .stats dd{font-size:12px}
+}
+/* 手机等窄屏（≤720px）才上下堆叠 */
+@media (max-width:720px){
+  header{padding:34px 16px 20px}
+  main{grid-template-columns:1fr;gap:20px;padding:4px 14px 22px}
+  .stage{width:100%}
+  .controls{gap:10px}
+  .elapsed{margin-left:0;text-align:left}
+  .speed{max-width:none}
+  .detail{position:static;max-height:none;overflow:visible;padding:18px 16px 14px}
+  .p-title h2{font-size:22px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sc-row{gap:18px;min-height:96px}
+}
+
+/* ============ 11. Reduced motion ============ */
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+  .rise{opacity:1;transform:none}
+}
+
+/* ============ 12. 教室投影模式 Classroom Mode ============ */
+/* 面向希沃白板等教室大屏 / 远距离观看：全面放大文字与控件 */
+main,footer{max-width:1600px}
+.stage-col{max-width:none}
+.chip{font-size:14.5px;padding:8px 16px}
+.chip .dot{width:12px;height:12px}
+.detail{padding:26px 26px 20px}
+.p-title h2{font-size:36px}
+.p-title .p-zh{font-size:27px;letter-spacing:.16em}
+.icon-btn{width:38px;height:38px}
+.p-type{font-size:14.5px;margin:14px 0 18px}
+.stats{gap:10px}
+.stats .cell{padding:12px 14px}
+.stats dt{font-size:13px}
+.stats dt span{font-size:13px}
+.stats dd{font-size:17.5px;margin-top:5px}
+.sc-title{font-size:13.5px}
+.sc-row{min-height:130px}
+.sc-name{font-size:13.5px}
+.size-note{font-size:16px;padding:12px 16px}
+.desc{font-size:17.5px;margin-bottom:14px}
+.fact .fact-k{font-size:13px}
+.fact p{font-size:16.5px}
+.orbit-counter{font-size:15px}
+/* 舞台内行星名称标签（字号由 JS --label-size 控制，这里提升对比度与间距） */
+.anchor .label{color:#cdd9f7;top:calc(var(--r) + 9px)}
+footer p{font-size:13.5px;line-height:2.1}
+/* 大屏（>1080px）：详情栏加宽到 480px，舞台更大 */
+@media (min-width:1081px){
+  main{grid-template-columns:minmax(0,1fr) 480px;gap:24px}
+}
+/* 平板双栏保留，详情栏放大到 400px */
+@media (max-width:1080px) and (min-width:721px){
+  main{grid-template-columns:minmax(0,1fr) 400px;gap:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- region: header -->
+<header class="rise rise-1" data-info-section="overview">
+  <h1><span lang="en">THE SOLAR SYSTEM</span><span class="t-zh">太阳系</span></h1>
+</header>
+
+<!-- region: main -->
+<main data-info-interactive="solar-system">
+  <section class="stage-col rise rise-2" data-info-section="orbital-view" data-explorable-model="planet-orbits" aria-label="太阳系轨道视图 Solar system orbital view">
+    <div class="stage" id="stage">
+      <div class="stars" id="stars" aria-hidden="true"></div>
+      <noscript>
+        <div class="noscript-note">此页面需要启用 JavaScript 才能观看轨道动画。<br>JavaScript is required for the orbital animation.</div>
+      </noscript>
+      <!-- orbit rings & planet anchors injected by script -->
+    </div>
+
+    <nav class="planet-nav" id="planetNav" aria-label="天体导航 Body navigation">
+      <!-- chips injected by script -->
+    </nav>
+
+    <div class="controls" data-pattern="model-control">
+      <button class="btn" id="playBtn" aria-label="Pause or resume animation 暂停或继续动画">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg>
+        <span>Pause 暂停</span>
+      </button>
+      <button class="btn" id="resetBtn" aria-label="Reset mission time 重置任务时间">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3v4.5h-4.5"/></svg>
+        <span>Reset 重置</span>
+      </button>
+      <label class="speed">
+        <span class="ctl-k">Time speed 流速<b id="speedVal">30 d/s</b></span>
+        <input type="range" id="speedRange" min="0" max="100" value="58" step="1"
+               aria-label="Time acceleration in days per second 时间流速：每天每秒">
+      </label>
+      <div class="elapsed">
+        <span class="ctl-k">Mission time 任务时间</span>
+        <b id="elapsedVal">T+ 0 d</b>
+      </div>
+    </div>
+  </section>
+
+  <aside class="detail rise rise-3" aria-label="天体详情 Body details" data-info-section="detail">
+    <div id="panelContent" aria-live="polite"></div>
+    <div class="orbit-counter" id="orbitCounter" hidden></div>
+  </aside>
+</main>
+
+<!-- region: footer -->
+<footer class="rise rise-4" data-info-section="notes">
+  <p><b>Data 数据</b> — NASA Planetary Fact Sheets · JPL Keplerian Elements (J2000 mean longitudes) · moon counts as of 2025 卫星数量截至 2025 年</p>
+  <p><b>Scale 比例</b> — Orbital periods are true to ratio; planet sizes and orbital distances are compressed for visibility 公转周期比例真实；行星尺寸与轨道距离经视觉压缩以便观察</p>
+  <p><b>Tip 提示</b> — Raise the time speed and watch the inner planets lap the outer giants 调高时间流速，观察内侧行星一次次超越外侧巨行星</p>
+</footer>
+
+<script>
+/* ================================================================
+   Solar System interactive orbital model — single-file, vanilla JS
+   Region: DATA
+================================================================ */
+const SUN = {
+  id:'sun', nameEn:'Sun', nameZh:'太阳', pc:'#ffd76e', isSun:true,
+  typeEn:'G-type main-sequence star', typeZh:'G 型主序星',
+  stats:[
+    ['Diameter','直径','1,392,700 km'],
+    ['Mass','质量','1.989 × 10³⁰ kg'],
+    ['Surface temp.','表面温度','5,505 °C'],
+    ['Rotation (equator)','自转周期','≈ 25 d'],
+    ['Age','年龄','≈ 4.6 billion yr'],
+    ['Luminosity','光度','3.828 × 10²⁶ W'],
+    ['Spectral type','光谱型','G2V yellow dwarf'],
+    ['Planets','行星','8']
+  ],
+  descEn:"The Sun is a G-type main-sequence star holding 99.86% of the Solar System's mass. Its core fuses roughly 600 million tonnes of hydrogen into helium every second, and the light it releases takes about 8 minutes 20 seconds to reach Earth.",
+  descZh:"太阳是一颗 G 型主序星，占据太阳系总质量的 99.86%。其核心每秒将约 6 亿吨氢聚变为氦，释放出的光大约需要 8 分 20 秒才能抵达地球。",
+  factEn:"The Sun's outer atmosphere, the corona, is hundreds of times hotter than its visible surface.",
+  factZh:"太阳的外层大气——日冕，温度比可见表面高出数百倍。"
+};
+
+const PLANETS = [
+  {
+    id:'mercury', nameEn:'Mercury', nameZh:'水星', pc:'#b8a99a', c1:'#cfc2b2', c2:'#6f6355',
+    au:0.387, periodD:87.969, L0:252.251, rKm:2440, vr:3.6, of:0.05,
+    typeEn:'Terrestrial planet', typeZh:'岩质行星',
+    stats:[
+      ['Diameter','直径','4,879 km'],
+      ['Mass','质量','3.30 × 10²³ kg · 0.055 M⊕'],
+      ['Orbital period','公转周期','87.97 d'],
+      ['Rotation','自转周期','58.65 d'],
+      ['Dist. from Sun','距日距离','57.9 M km · 0.39 AU'],
+      ['Moons','卫星','0'],
+      ['Temp. range','温度范围','−173 ~ 427 °C'],
+      ['Gravity','表面重力','3.7 m/s²']
+    ],
+    descEn:"The smallest planet and the closest to the Sun, Mercury is a cratered world of extremes. With almost no atmosphere to hold heat, its surface swings from scorching days to freezing nights.",
+    descZh:"水星是体积最小、离太阳最近的行星，是一个布满环形山的世界。由于几乎没有大气保温，其表面在酷热的白昼与严寒的黑夜之间剧烈摇摆。",
+    factEn:"One Mercury solar day — sunrise to sunrise — lasts 176 Earth days.",
+    factZh:"在水星上，从一次日出到下一次日出需要 176 个地球日。"
+  },
+  {
+    id:'venus', nameEn:'Venus', nameZh:'金星', pc:'#e8c68a', c1:'#f6e3b0', c2:'#c08e45',
+    au:0.723, periodD:224.701, L0:181.980, rKm:6052, vr:5.2, of:0.184,
+    typeEn:'Terrestrial planet', typeZh:'岩质行星',
+    stats:[
+      ['Diameter','直径','12,104 km'],
+      ['Mass','质量','4.87 × 10²⁴ kg · 0.815 M⊕'],
+      ['Orbital period','公转周期','224.70 d'],
+      ['Rotation','自转周期','243.02 d · retrograde 逆行'],
+      ['Dist. from Sun','距日距离','108.2 M km · 0.72 AU'],
+      ['Moons','卫星','0'],
+      ['Mean temp.','平均温度','≈ 464 °C'],
+      ['Gravity','表面重力','8.87 m/s²']
+    ],
+    descEn:"Venus is Earth's near-twin in size, but a runaway greenhouse effect has turned it into the hottest planet. Beneath its crushing carbon-dioxide atmosphere, lead would melt on the surface.",
+    descZh:"金星的大小与地球相近，但失控的温室效应使它成为太阳系最热的行星。在浓密的二氧化碳大气与高压之下，地表温度足以熔化铅。",
+    factEn:"Venus spins backwards — there, the Sun rises in the west.",
+    factZh:"金星逆向自转——在金星上，太阳从西边升起。"
+  },
+  {
+    id:'earth', nameEn:'Earth', nameZh:'地球', pc:'#5aa9f0', c1:'#8ec9f5', c2:'#2b6cb8',
+    au:1.000, periodD:365.256, L0:100.464, rKm:6371, vr:5.4, of:0.256,
+    typeEn:'Terrestrial planet', typeZh:'岩质行星',
+    stats:[
+      ['Diameter','直径','12,756 km'],
+      ['Mass','质量','5.97 × 10²⁴ kg'],
+      ['Orbital period','公转周期','365.26 d'],
+      ['Rotation','自转周期','23.93 h'],
+      ['Dist. from Sun','距日距离','149.6 M km · 1.00 AU'],
+      ['Moons','卫星','1'],
+      ['Mean temp.','平均温度','≈ 15 °C'],
+      ['Gravity','表面重力','9.81 m/s²']
+    ],
+    descEn:"Earth is the only world known to harbor life, with liquid-water oceans covering 71% of its surface. Its magnetic field and atmosphere shield the biosphere from solar radiation.",
+    descZh:"地球是已知唯一孕育生命的世界，71% 的表面被液态水海洋覆盖。磁场与大气层共同守护着生物圈，使其免受太阳辐射的侵袭。",
+    factEn:"Earth is not a perfect sphere — its equatorial bulge makes it about 43 km wider than it is tall.",
+    factZh:"地球并非完美球体——赤道隆起使它比两极方向宽约 43 千米。"
+  },
+  {
+    id:'mars', nameEn:'Mars', nameZh:'火星', pc:'#e07a4a', c1:'#eba06f', c2:'#93401c',
+    au:1.524, periodD:686.980, L0:355.433, rKm:3390, vr:4.1, of:0.347,
+    typeEn:'Terrestrial planet', typeZh:'岩质行星',
+    stats:[
+      ['Diameter','直径','6,792 km'],
+      ['Mass','质量','6.42 × 10²³ kg · 0.107 M⊕'],
+      ['Orbital period','公转周期','686.98 d · 1.88 yr'],
+      ['Rotation','自转周期','24.62 h'],
+      ['Dist. from Sun','距日距离','227.9 M km · 1.52 AU'],
+      ['Moons','卫星','2'],
+      ['Mean temp.','平均温度','≈ −63 °C'],
+      ['Gravity','表面重力','3.71 m/s²']
+    ],
+    descEn:"The Red Planet owes its color to iron-oxide dust. It hosts the Solar System's tallest volcano, Olympus Mons, and its largest canyon system, Valles Marineris.",
+    descZh:"火星的红色来自表面的氧化铁尘埃。它拥有太阳系最高的火山——奥林帕斯山，以及最大的峡谷群——水手号峡谷。",
+    factEn:"Mars has two tiny moons, Phobos and Deimos — named after the Greek gods of fear and dread.",
+    factZh:"火星有两颗小卫星——火卫一（Phobos）与火卫二（Deimos），以希腊神话中的恐惧与惊慌之神命名。"
+  },
+  {
+    id:'jupiter', nameEn:'Jupiter', nameZh:'木星', pc:'#e3bd8a', c1:'#efd7ac', c2:'#b98f60',
+    au:5.203, periodD:4332.59, L0:34.351, rKm:69911, vr:16.5, of:0.617,
+    typeEn:'Gas giant', typeZh:'气态巨行星',
+    stats:[
+      ['Diameter','直径','142,984 km'],
+      ['Mass','质量','1.898 × 10²⁷ kg · 317.8 M⊕'],
+      ['Orbital period','公转周期','4,332.6 d · 11.86 yr'],
+      ['Rotation','自转周期','9.93 h'],
+      ['Dist. from Sun','距日距离','778.5 M km · 5.20 AU'],
+      ['Moons','卫星','115'],
+      ['Cloud-top temp.','云顶温度','≈ −108 °C'],
+      ['Gravity','表面重力','24.79 m/s²']
+    ],
+    descEn:"Jupiter is the giant of the system — more than twice as massive as all the other planets combined. Its Great Red Spot is a storm wider than Earth that has raged for centuries.",
+    descZh:"木星是太阳系的巨人，质量是其余七颗行星总和的两倍多。它标志性的大红斑是一个比地球还宽的风暴，已持续肆虐数百年。",
+    factEn:"Jupiter spins faster than any other planet — a full day lasts under 10 hours.",
+    factZh:"木星的自转比其他任何行星都快——一整天不足 10 小时。"
+  },
+  {
+    id:'saturn', nameEn:'Saturn', nameZh:'土星', pc:'#ecd6a0', c1:'#f4e4b8', c2:'#b8905a',
+    au:9.537, periodD:10759.22, L0:50.077, rKm:58232, vr:14, of:0.75,
+    typeEn:'Gas giant', typeZh:'气态巨行星',
+    stats:[
+      ['Diameter','直径','120,536 km'],
+      ['Mass','质量','5.68 × 10²⁶ kg · 95.2 M⊕'],
+      ['Orbital period','公转周期','10,759 d · 29.46 yr'],
+      ['Rotation','自转周期','10.66 h'],
+      ['Dist. from Sun','距日距离','1,433.5 M km · 9.58 AU'],
+      ['Moons','卫星','293'],
+      ['Cloud-top temp.','云顶温度','≈ −139 °C'],
+      ['Gravity','表面重力','10.44 m/s²']
+    ],
+    descEn:"Famous for its dazzling rings of ice and rock, Saturn is the least dense planet — it would float in water. Its largest moon, Titan, has rivers and lakes of liquid methane.",
+    descZh:"土星以壮丽的冰岩光环闻名，是密度最低的行星——理论上能浮在水面上。它最大的卫星土卫六拥有液态甲烷构成的河流与湖泊。",
+    factEn:"Saturn now has 293 confirmed moons — the most of any planet in the Solar System.",
+    factZh:"土星目前已确认 293 颗卫星，数量居太阳系八大行星之首。"
+  },
+  {
+    id:'uranus', nameEn:'Uranus', nameZh:'天王星', pc:'#9fe3e8', c1:'#d6f4f6', c2:'#5fa8b8',
+    au:19.191, periodD:30688.5, L0:314.055, rKm:25362, vr:10, of:0.902,
+    typeEn:'Ice giant', typeZh:'冰巨星',
+    stats:[
+      ['Diameter','直径','51,118 km'],
+      ['Mass','质量','8.68 × 10²⁵ kg · 14.5 M⊕'],
+      ['Orbital period','公转周期','30,687 d · 84.02 yr'],
+      ['Rotation','自转周期','17.24 h · retrograde 逆行'],
+      ['Dist. from Sun','距日距离','2,867.0 M km · 19.22 AU'],
+      ['Moons','卫星','28'],
+      ['Mean temp.','平均温度','≈ −197 °C'],
+      ['Gravity','表面重力','8.87 m/s²']
+    ],
+    descEn:"Uranus rolls around the Sun on its side, tilted about 98° — most likely knocked over by an ancient collision. Methane in its atmosphere gives the ice giant its pale cyan hue.",
+    descZh:"天王星以约 98° 的倾角“躺着”绕太阳公转，很可能是被远古撞击撞歪的。大气中的甲烷赋予这颗冰巨星淡青色的外观。",
+    factEn:"Uranus was the first planet ever discovered through a telescope, in 1781.",
+    factZh:"天王星是人类第一颗通过望远镜发现的行星（1781 年）。"
+  },
+  {
+    id:'neptune', nameEn:'Neptune', nameZh:'海王星', pc:'#7aa2f7', c1:'#8fb4f9', c2:'#24439e',
+    au:30.069, periodD:60182, L0:304.349, rKm:24622, vr:9.8, of:1.0,
+    typeEn:'Ice giant', typeZh:'冰巨星',
+    stats:[
+      ['Diameter','直径','49,528 km'],
+      ['Mass','质量','1.02 × 10²⁶ kg · 17.1 M⊕'],
+      ['Orbital period','公转周期','60,190 d · 164.8 yr'],
+      ['Rotation','自转周期','16.11 h'],
+      ['Dist. from Sun','距日距离','4,515.0 M km · 30.05 AU'],
+      ['Moons','卫星','16'],
+      ['Mean temp.','平均温度','≈ −201 °C'],
+      ['Gravity','表面重力','11.15 m/s²']
+    ],
+    descEn:"The most distant planet from the Sun, Neptune is a deep-blue ice giant whipped by the fastest winds in the Solar System — gusts reach about 2,100 km/h.",
+    descZh:"海王星是距太阳最远的行星。这颗深蓝色的冰巨星上呼啸着太阳系最快的风，风速可达约每小时 2100 千米。",
+    factEn:"Since its discovery in 1846, Neptune has completed just one full orbit — in 2011.",
+    factZh:"自 1846 年被发现以来，海王星仅在 2011 年完成过一次完整公转。"
+  }
+];
+
+const ALL = {sun:SUN};
+PLANETS.forEach(p => ALL[p.id] = p);
+
+const OVERVIEW = {
+  stats:[
+    ['Age','年龄','≈ 4.6 billion yr'],
+    ['Star','恒星','Sun · G2V'],
+    ['Planets','行星','8'],
+    ['Dwarf planets','矮行星','5 recognized 已确认'],
+    ['Mass share','质量占比','Sun 99.86%'],
+    ['Location','位置','Orion Arm · Milky Way 银河系猎户臂']
+  ],
+  descEn:"Our Solar System formed about 4.6 billion years ago from a collapsing cloud of gas and dust. Eight planets circle the Sun — four rocky worlds close in, four giants far out — along with dwarf planets, asteroids and comets. Click any body to explore it.",
+  descZh:"太阳系约于 46 亿年前由一团坍缩的气体与尘埃形成。八颗行星围绕太阳运行：内侧是四颗岩质行星，外侧是四颗巨行星，此外还有矮行星、小行星与彗星。点击任意天体，开始探索。",
+  factEn:"Everything you can see in the night sky with the naked eye lies inside our own galaxy.",
+  factZh:"夜空中肉眼可见的一切，几乎都位于银河系之内。"
+};
+
+/* ================================================================
+   Region: DOM BUILD
+================================================================ */
+const stage = document.getElementById('stage');
+const starsBox = document.getElementById('stars');
+const nav = document.getElementById('planetNav');
+const panelContent = document.getElementById('panelContent');
+const orbitCounter = document.getElementById('orbitCounter');
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+(function buildStars(){
+  const rnd = mulberry32(20260921);
+  const frag = document.createDocumentFragment();
+  for(let i=0;i<120;i++){
+    const s=document.createElement('span');
+    s.style.left=(rnd()*100).toFixed(2)+'%';
+    s.style.top=(rnd()*100).toFixed(2)+'%';
+    s.style.opacity=(0.18+rnd()*0.5).toFixed(2);
+    frag.appendChild(s);
+  }
+  for(let i=0;i<26;i++){
+    const s=document.createElement('span');
+    s.className='big';
+    s.style.left=(rnd()*100).toFixed(2)+'%';
+    s.style.top=(rnd()*100).toFixed(2)+'%';
+    s.style.opacity=(0.3+rnd()*0.55).toFixed(2);
+    frag.appendChild(s);
+  }
+  starsBox.appendChild(frag);
+})();
+
+function makeAnchor(b){
+  const el=document.createElement('button');
+  el.type='button';
+  el.className='anchor'+(b.isSun?' sun-anchor':'');
+  el.dataset.id=b.id;
+  el.setAttribute('aria-label', b.nameEn+' '+b.nameZh+' — view details 查看详情');
+  el.style.setProperty('--pc', b.pc);
+  el.style.setProperty('--pc-glow', b.pc+'59');
+  el.style.setProperty('--pc-soft', b.pc+'80');
+  el.style.setProperty('--c1', b.c1||'');
+  el.style.setProperty('--c2', b.c2||'');
+  el.innerHTML =
+    '<span class="hit" aria-hidden="true"></span>'+
+    '<span class="body'+(b.isSun?' sun-body':'')+'" aria-hidden="true"></span>'+
+    '<span class="label" aria-hidden="true">'+b.nameEn+' '+b.nameZh+'</span>';
+  el.addEventListener('click',()=>select(b.id));
+  stage.appendChild(el);
+  return el;
+}
+function makeRing(p){
+  const r=document.createElement('div');
+  r.className='ring';
+  r.dataset.id=p.id;
+  r.style.setProperty('--pc', p.pc);
+  r.style.setProperty('--pc-glow', p.pc+'59');
+  stage.appendChild(r);
+  return r;
+}
+function makeChip(b){
+  const c=document.createElement('button');
+  c.type='button';
+  c.className='chip';
+  c.dataset.id=b.id;
+  c.setAttribute('aria-pressed','false');
+  c.style.setProperty('--pc', b.pc);
+  c.style.setProperty('--pc-glow', b.pc+'59');
+  c.innerHTML='<span class="dot" aria-hidden="true"></span>'+b.nameEn+' '+b.nameZh;
+  c.addEventListener('click',()=>select(b.id));
+  nav.appendChild(c);
+  return c;
+}
+
+const sunAnchor = makeAnchor(SUN);
+const rings = {}, anchors = {sun:sunAnchor};
+PLANETS.forEach(p=>{
+  rings[p.id]=makeRing(p);
+  anchors[p.id]=makeAnchor(p);
+});
+[SUN,...PLANETS].forEach(makeChip);
+
+/* ================================================================
+   Region: LAYOUT (responsive radii, compressed distances)
+================================================================ */
+function layout(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if(!w || !h) return;
+  /* 教室投影模式：整体随舞台等比放大，适配远距离观看 */
+  const s = Math.max(0.5, Math.min(1.4, Math.min(w,h)/780));
+  const PLANET_SCALE = 2.5; /* 教室模式：行星模型放大到基础半径的 2.5 倍 */
+  /* 横向拓宽：轨道改为椭圆形，水平半径按舞台宽度、垂直半径按舞台高度计算 */
+  const maxRx = w/2 - Math.max(40, 56*s);
+  const maxRy = h/2 - Math.max(40, 52*s);
+  const k = maxRy/maxRx; /* 椭圆纵横比，所有轨道统一 */
+  const minRx = Math.max(90, 125*s);
+  const labelSize = Math.max(13, Math.round(16*s*10)/10);
+  PLANETS.forEach(p=>{
+    p._rx = minRx + p.of*(maxRx-minRx);
+    p._ry = p._rx*k;
+    const a = anchors[p.id];
+    a.style.setProperty('--r', (p.vr*s*PLANET_SCALE).toFixed(2)+'px');
+    a.style.setProperty('--hit', Math.max(30, p.vr*s*PLANET_SCALE*2.4).toFixed(0)+'px');
+    a.style.setProperty('--label-size', labelSize+'px');
+    const ring = rings[p.id];
+    ring.style.width = (p._rx*2).toFixed(1)+'px';
+    ring.style.height = (p._ry*2).toFixed(1)+'px';
+  });
+  sunAnchor.style.setProperty('--r', (42*s).toFixed(2)+'px');
+  sunAnchor.style.setProperty('--hit', Math.max(40, 62*s).toFixed(0)+'px');
+  sunAnchor.style.setProperty('--label-size', labelSize+'px');
+}
+new ResizeObserver(layout).observe(stage);
+layout();
+
+/* ================================================================
+   Region: ANIMATION LOOP
+   Angle = J2000 mean longitude + 360 × elapsedDays / period (CCW)
+================================================================ */
+let elapsed = 0;
+let playing = !REDUCED;
+let speed = 30;
+let selected = null;
+let lastT = performance.now();
+let lastCounterUpd = 0, lastElapsedUpd = 0;
+
+const playBtn = document.getElementById('playBtn');
+const speedRange = document.getElementById('speedRange');
+const speedVal = document.getElementById('speedVal');
+const elapsedVal = document.getElementById('elapsedVal');
+
+function fmtSpeed(v){ return (v<10 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US'))+' d/s'; }
+function fmtElapsed(d){
+  if(d < 365) return 'T+ '+Math.floor(d).toLocaleString('en-US')+' d';
+  return 'T+ '+Math.floor(d).toLocaleString('en-US')+' d · '+(d/365.256).toFixed(2)+' yr';
+}
+function setPlaying(on){
+  playing = on;
+  document.body.classList.toggle('paused', !on);
+  playBtn.innerHTML = on
+    ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg><span>Pause 暂停</span>'
+    : '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg><span>Play 播放</span>';
+  playBtn.setAttribute('aria-pressed', String(!on));
+}
+
+function updateCounter(force){
+  const p = selected && !selected.isSun ? selected : null;
+  if(!p){ orbitCounter.hidden = true; return; }
+  orbitCounter.hidden = false;
+  const n = elapsed / p.periodD;
+  orbitCounter.innerHTML =
+    'Orbits since page load 自页面加载起已公转 <b>'+n.toFixed(2)+'</b> 圈 ('+p.nameEn+' '+p.nameZh+')';
+}
+
+function frame(now){
+  let dt = (now - lastT)/1000;
+  lastT = now;
+  if(dt > 0.1) dt = 0.1;
+  if(playing) elapsed += dt * speed;
+
+  PLANETS.forEach(p=>{
+    const ang = (p.L0 + 360*elapsed/p.periodD) % 360;
+    const rad = ang*Math.PI/180;
+    /* FIX: .anchor 已经通过 CSS 定位在舞台中心 (left:50%/top:50%)，
+       因此只需按轨道偏移量平移，不能再叠加舞台中心坐标 cx/cy，
+       否则行星会绕舞台右下角旋转、脱离轨道圈。
+       轨道为椭圆：水平半径 _rx、垂直半径 _ry */
+    const x = p._rx*Math.cos(rad);
+    const y = -p._ry*Math.sin(rad);
+    anchors[p.id].style.transform = 'translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
+  });
+
+  if(now - lastElapsedUpd > 120){
+    lastElapsedUpd = now;
+    elapsedVal.textContent = fmtElapsed(elapsed);
+  }
+  if(now - lastCounterUpd > 400){
+    lastCounterUpd = now;
+    updateCounter();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ================================================================
+   Region: SELECTION & PANEL
+================================================================ */
+function statCells(stats){
+  return stats.map(function(s){
+    return '<div class="cell"><dt>'+s[0]+'<span>'+s[1]+'</span></dt><dd>'+s[2]+'</dd></div>';
+  }).join('');
+}
+function sizeCmpHTML(b){
+  if(b.isSun){
+    return '<p class="size-note">The Sun\'s diameter is about 109 × Earth\'s — 1.39 million km vs 12,756 km.<br>太阳的直径约为地球的 109 倍——139 万千米对 12,756 千米。</p>';
+  }
+  const d = Math.min(190, b.rKm/12756*20).toFixed(1);
+  return '<div class="size-cmp">'+
+    '<p class="sc-title">Size vs Earth · 与地球尺寸对比<span>diameters to scale 直径等比</span></p>'+
+    '<div class="sc-row">'+
+      '<div class="sc-item"><span class="sc-ball" style="--d:20px;--c1:#8ec9f5;--c2:#2b6cb8"></span><span class="sc-name">Earth<br>地球</span></div>'+
+      '<div class="sc-item"><span class="sc-ball" style="--d:'+d+'px;--c1:'+b.c1+';--c2:'+b.c2+'"></span><span class="sc-name">'+b.nameEn+'<br>'+b.nameZh+'</span></div>'+
+    '</div></div>';
+}
+function panelHTML(b){
+  if(!b){
+    return '<div class="p-head"><div class="p-title">'+
+      '<h2 lang="en">SOLAR SYSTEM</h2><p class="p-zh">太阳系</p></div></div>'+
+      '<p class="p-type" style="--pc:#6ea8ff">Overview · 总览</p>'+
+      '<dl class="stats">'+statCells(OVERVIEW.stats)+'</dl>'+
+      '<p class="desc" lang="en">'+OVERVIEW.descEn+'</p>'+
+      '<p class="desc" lang="zh-CN">'+OVERVIEW.descZh+'</p>'+
+      '<div class="fact" style="--pc:#6ea8ff"><span class="fact-k">Did you know · 你知道吗</span><p>'+
+      '<span lang="en">'+OVERVIEW.factEn+'</span><br><span lang="zh-CN">'+OVERVIEW.factZh+'</span></p></div>';
+  }
+  return '<div class="p-head"><div class="p-title">'+
+    '<h2 lang="en">'+b.nameEn.toUpperCase()+'</h2><p class="p-zh">'+b.nameZh+'</p></div>'+
+    '<button class="icon-btn" id="pClose" type="button" aria-label="Back to overview 返回总览">'+
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg>'+
+    '</button></div>'+
+    '<p class="p-type">'+b.typeEn+' · '+b.typeZh+'</p>'+
+    '<dl class="stats">'+statCells(b.stats)+'</dl>'+
+    sizeCmpHTML(b)+
+    '<p class="desc" lang="en">'+b.descEn+'</p>'+
+    '<p class="desc" lang="zh-CN">'+b.descZh+'</p>'+
+    '<div class="fact"><span class="fact-k">Did you know · 你知道吗</span><p>'+
+    '<span lang="en">'+b.factEn+'</span><br><span lang="zh-CN">'+b.factZh+'</span></p></div>';
+}
+
+function select(id){
+  selected = id ? ALL[id] : null;
+  Object.keys(anchors).forEach(function(k){
+    anchors[k].classList.toggle('selected', k===id);
+  });
+  Object.keys(rings).forEach(function(k){
+    rings[k].classList.toggle('active', k===id);
+  });
+  document.querySelectorAll('.chip').forEach(function(c){
+    const on = c.dataset.id===id;
+    c.classList.toggle('selected', on);
+    c.setAttribute('aria-pressed', String(on));
+  });
+  stage.classList.toggle('has-sel', !!id);
+  panelContent.innerHTML = panelHTML(selected);
+  const btn = document.getElementById('pClose');
+  if(btn) btn.addEventListener('click', function(){ select(null); });
+  updateCounter(true);
+}
+
+/* ================================================================
+   Region: CONTROLS
+================================================================ */
+playBtn.addEventListener('click', function(){ setPlaying(!playing); });
+document.getElementById('resetBtn').addEventListener('click', function(){
+  elapsed = 0;
+  elapsedVal.textContent = fmtElapsed(0);
+  updateCounter(true);
+});
+speedRange.addEventListener('input', function(){
+  speed = Math.pow(365, this.value/100);
+  speedVal.textContent = fmtSpeed(speed);
+});
+speedVal.textContent = fmtSpeed(speed);
+
+/* ================================================================
+   Region: INIT
+================================================================ */
+setPlaying(playing);
+select(null);
+requestAnimationFrame(frame);
+</script>
+
+<!--
+  Design Compliance — 太阳系行星探索
+  Scenario: info-interactive (explorable model) · Style: cosmic (dark adaptation)
+  Data: NASA Planetary Fact Sheets; JPL J2000 mean longitudes; moon counts as of 2025.
+  Scales: orbital periods true to ratio; distances log-compressed; sizes sqrt-compressed — disclosed in footer.
+  Craft: visual-explanation (explorable model, linked highlighting), animation-discipline
+  (reduced-motion defaults to paused; global pause control), accessibility (WCAG 2.2 AA target:
+  real <button> targets, focus-visible rings, aria-live panel, aria-pressed chips, lang tags).
+  Editable regions marked with "region:" comments in CSS/JS and data-info-section attributes.
+-->
+</body>
+</html>
